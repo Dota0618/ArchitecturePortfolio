@@ -1,27 +1,30 @@
-# Put the quality test before the generation pipeline
+# A usable sprite sheet starts with a quality test
 
-gameFrameAnimation is a desktop tool for turning a character reference into 2D animation frames for games. I'm considering both hosted and offline generation. The first thing I need to know is whether either route produces something I can use in the game without redrawing it. A good preview doesn't answer that question: I need to see the same character move and turn at game scale.
+gameFrameAnimation is a desktop tool for turning a character reference into 2D animation frames for games. A game developer needs frames that can be played at the right scale and speed, without the character changing shape when it turns. Both hosted and offline routes are possibilities. Before choosing one, I want to know if the output can go straight into a game.
 
-## What the desktop prototype could do
+## What the prototype got through to export
 
-The local client started with a single reference image and a prompt. Its frame preview let the user select frames and adjust timing before export. In the November workflow check, the input to that preview was an existing sequence of frames. The check covered submitting the job, selecting frames, adjusting timing and exporting. That was a useful result: the workflow could take a known sequence through to export. It didn't tell me whether a hosted or offline model could produce a usable sequence in the first place.
+The prototype started with a reference image and a prompt. In the November desktop check, an existing sequence of frames stood in for generated output. The check went from job submission through frame selection and timing changes to export. The prototype took those known frames through export. It did not establish that a model could create an acceptable sequence.
 
-## Compare the first outputs in the game
+That distinction affects the design. I can make the review and export path work with existing frames before investing in a generator. I wouldn't choose a generation route based on what that editor test showed.
 
-I'd start with a walk cycle in eight directions. Choose a character with an asymmetrical feature, like a shoulder guard. Agree on the eight directions, frame size, timing and playback scale. Run both routes on the same reference. Keep the first output, including missing views; don't replace a bad result and call the replacement a first pass.
+## A walk cycle that could change the choice
 
-### Agree on what counts as a fix
+I'd use one character with a visible shoulder guard on one side and a walk in eight directions. Give both candidates the same reference, game scale, frame timing and export rules. Keep the first output and count missing views as failures. For this test, all eight directions must be usable after the same automatic packaging, with no retries, substitutions or manual fixes. I'd then repeat the test with a different character and action before standardising on a route.
 
-An export step can arrange the frames, normalise their size and put them on a sprite sheet. Give both routes the same export rules. If someone has to repaint a frame, realign one direction by hand or generate the missing views, record that work separately. Otherwise, “one click” can mean five attempts and ten minutes of cleanup, and the results won't tell you what to automate.
+Here's how I'd separate two problems that can look similar in a preview:
 
-Play the animation at game scale. Switch direction while walking, then return to idle. [Godot's animation guide](https://docs.godotengine.org/en/stable/tutorials/2d/2d_sprite_animation.html) shows how to preview a sheet or individual frames. A foot that jumps because the frame is offset is an export problem. A shoulder guard that jumps to the other side may be an artwork problem. Record which direction failed and why, and count the usable ones before and after rework.
+| What you see in the game | Check before blaming the model | What I'd do if confirmed |
+| --- | --- | --- |
+| The character jumps sideways during the northeast walk. | Compare the point used to place the character in each frame. The export may have moved that point when it trimmed transparent pixels. | Fix the origin used by the exporter and replay the exact same frames. |
+| The shoulder guard changes sides when the character turns. | Check the original frames for the two directions and whether the exporter mirrored an image. | Fix the mirroring rule if it caused the change. If the raw frames already disagree, constrain generation or try rendering from a rig. |
 
-### Use the failure to choose what to build next
+These are examples of what to look for, not defects observed in the prototype. Play the sheet in the target engine at game scale, switch directions while moving, then return to idle. [Godot's sprite animation guide](https://docs.godotengine.org/en/stable/tutorials/2d/2d_sprite_animation.html) shows how to preview frames or a sprite sheet. Record how many directions passed before manual cleanup and how many needed new frames. Keep the cleanup time separate from generation time.
 
-- If the art holds together but the origin drifts, fix packaging and replay the same frames.
-- If the generator keeps changing the character, try tighter motion constraints or compare it with rendering a rig. A better packer won't give the character its shoulder guard back.
-- If both routes produce usable frames, I compare the time and cost per usable animation, including retries and cleanup. Also check whether the artwork is allowed to leave the workstation and whether the local machine can run the workflow.
+## When each route earns its place
 
-One good walk cycle gets you to the next test, not to a general quality claim. Try another character and action that you didn't tune for. I'd add queues and retry logic when job duration or volume starts getting in the way. They won't make a bad animation usable.
+Hosted generation avoids maintaining the model on the workstation, but I'd check whether the reference art can leave the machine and whether retries make the job expensive. Offline keeps the input local if the workflow runs entirely on the workstation; it needs hardware and a local runtime that someone can maintain. A rig takes work up front, but limits how much of the character can change between directions. I'd compare it if appearance keeps drifting in the raw output.
 
-I don't have a verified eight-direction set from a real model to show here. The desktop export check and the model-quality test are separate milestones.
+I haven't verified a complete eight-direction export from a real model for this case. The next decision depends on the first-pass results and the effort to repair them. The prototype only settled the earlier question: existing frames can go through selection, timing and export.
+
+[Back to the case studies](../README.md#architecture-guides)

@@ -1,11 +1,13 @@
-# ArchitecturePortfolio
+# Architecture Portfolio
 
-I write about how I make architecture decisions: what I look at first, what I test, and when I change course.
-
-Start with [How I make architecture decisions](how-i-make-architecture-decisions.md). Each case below starts with a real project and uses it to work through one decision.
+These case studies show how I reason about architecture in three projects: a Java administration backend, an analytics application and a game asset tool. Each starts with a project problem, then shows what changed or what the prototype actually demonstrated.
 
 ## Architecture guides
 
-1. **CYYS Framework** · [Split the code before you split the deployment](case-studies/cyys-frame-one-process-explicit-boundaries.md) — A Java administration backend. How to compare modules, workers, replicas and services by what they let you change independently.
-2. **gameFrameAnimation** · [Put the quality test before the generation pipeline](case-studies/game-frame-animation-first-pass-quality.md) — A desktop prototype checked with existing frames. How to test a generator before betting the workflow on it.
-3. **CYYS AI Platform** · [Let the model propose the query. Decide who can run it.](case-studies/cyys-ai-platform-architecture.md) — An analytics workflow. How to separate interpreting a question, approving the plan and enforcing access.
+| Project | Case study | What you can see in the case |
+| --- | --- | --- |
+| CYYS Framework | [One backend release, two different rules for access](case-studies/cyys-frame-one-process-explicit-boundaries.md) | A department tree widened to two authorised organisations without widening write access. |
+| CYYS AI Platform | [From a question to a reviewable query plan](case-studies/cyys-ai-platform-architecture.md) | A task-state fix that passed on rerun, and a separate real-model check that asked for clarification. |
+| gameFrameAnimation | [A usable sprite sheet starts with a quality test](case-studies/game-frame-animation-first-pass-quality.md) | Working selection, timing and export with existing frames. No verified first-pass model result. |
+
+[How I make architecture decisions](how-i-make-architecture-decisions.md) explains how I compare options and decide what would make me change course.

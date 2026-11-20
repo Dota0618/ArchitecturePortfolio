@@ -1,37 +1,36 @@
-# Split the code before you split the deployment
+# One backend release, two different rules for access
 
-CYYS Framework is a Java administration backend for organisations that belong to the same management hierarchy. An operator can select an organisation, but the selection doesn't grant new actions or make every record in that organisation visible. The framework needs to keep those rules out of shared infrastructure that other modules use.
+CYYS Framework is a Java backend for administering organisations, accounts and departments within one management hierarchy. One job is to let an operator manage departments across several authorised organisations while making each edit in a specific organisation. The department screen made the difference between those two scopes visible.
 
-CYYS separates common infrastructure, administration and application assembly in code, while shipping them in one backend release. That setup raises a useful question: which parts need a clear boundary in the code, and which actually need to run, scale or ship on their own?
+## The department tree needed a wider read, not a wider write
 
-## Draw the dependencies first
+The client initially sent the selected organisation with the tree request as well as with edit requests. The first browser check used simulated responses. It confirmed that switching organisations sent the right selection for an edit; it did not establish what the real API would return for the tree.
 
-In CYYS, the common module defines what it needs from identity resolution. Administration supplies the implementation because it owns the account and organisation rules. A third module assembles the application. That keeps the dependency pointed towards common code without making identity resolution a network call.
+The client stopped sending the current selection on the tree request. The backend still worked out which organisations the operator was allowed to see. Edit requests continued to use the selected organisation.
 
-I make the direction of dependencies explicit. A build check should fail if common code starts importing administration classes. This catches one kind of coupling. It won't catch common code quietly querying an administration table, so review data ownership as well as imports.
+| Scenario | What the server test showed |
+| --- | --- |
+| Open the management tree with access to two organisations. | Departments from both authorised organisations appeared. |
+| Try to save a department in one organisation with a manager or parent from another. | The cross-organisation assignment was rejected. |
 
-I keep the access checks separate for the same reason: each one answers a different question. An operator may be allowed to list records and may be allowed to select a branch, but some records in that branch can still be outside the operator's scope. Test those conditions separately. For a paged list, verify that the count follows the same rules as the rows you return.
+These are results from the 17 November test, not a claim about every read and write path. Separately, the integration test checks both directions of the read rule: an organisation outside the operator’s scope is absent from the tree, then appears when that test operator is granted broader access. A [separate creation test](https://github.com/Dota0618/cyys_frame/blob/238aaa575f024acca72ae8354e8eb4faa45eb06d/backend/cyys-application/src/test/java/com/cyys/application/DepartmentIntegrationTest.java#L58-L68) checks the rejected assignments. The [client change](https://github.com/Dota0618/cyys_frame/blob/238aaa575f024acca72ae8354e8eb4faa45eb06d/admin-ui/src/services/system/departments.ts#L13-L14) and [tree integration test](https://github.com/Dota0618/cyys_frame/blob/238aaa575f024acca72ae8354e8eb4faa45eb06d/backend/cyys-application/src/test/java/com/cyys/application/DepartmentIntegrationTest.java#L18-L32) show how the rule is expressed in the project.
 
-## What changed in the department screen
+## Keep policy with the code that owns it
 
-The management tree needed to show departments from every organisation the operator was allowed to manage. The edit form had a different job: every write had to stay in the organisation selected for that edit. Sending the current selection with both requests treated those two jobs as if they had the same scope.
+I separate three questions: which organisation is the operator acting in, may they perform this action, and which records are in scope for this operation? The tree and edit behave differently because an answer to one question cannot stand in for the other two. On a paged list, for example, I'd check that the total count is filtered as well as the returned rows.
 
-Initially, the browser check used simulated responses. It showed that switching organisations sent the right selection for an edit, but it couldn't establish what the real API would return for the management tree. The client was changed so the tree request no longer sent the current selection. The server still decided which organisations the operator could see; edit requests still carried a selection.
+CYYS ships a single executable JAR. Its application module assembles administration and common infrastructure. Common defines the interface it needs for resolving identity; administration supplies the implementation because it owns the rules for accounts and organisations. Keeping both in one process avoids a remote call on this path. It also makes careless shortcuts easy: an import rule catches one module using another module's internal code, but it won't catch a hand-written query against a table it doesn't own.
 
-In the server test on 17 November, the tree showed departments from two authorised test organisations. In the same test, the API still rejected assigning a manager or parent department from another organisation. The result was a broader view without broader write access. That is why I treat the scope of a read and the authority to change a record as separate decisions.
+## What would justify a different deployment?
 
-## Compare what you'd gain by separating the runtime
+| If this becomes the problem | What I'd try first | What I'd check before committing |
+| --- | --- | --- |
+| Exports slow ordinary requests. | Limit concurrent exports and find the contested resource; move jobs to a worker if the API process needs isolation. | With an export running, compare ordinary request latency and database load. A second process can still compete for the same database. |
+| An API restart is no longer acceptable during active use. | Replicate the same application and revisit session storage. | Sign in on one instance, send the next request to another, then stop the first. Repeat with a revoked session. |
+| One capability keeps holding up unrelated releases. | Give that capability a stable interface and an explicit owner before considering a separate service. | Can the two parts ship independently? If a previously atomic write now crosses a network, what happens when only one side commits? |
 
-**Data and transactions.** Suppose creating an account and granting its initial role must succeed or fail together. If both writes run inside one local transaction, the database can enforce that rule. If separate services own the account and the grant, decide what users see when the first write succeeds and the second fails. You might need a pending state, a retry or a way to reverse the first change. On the other hand, a single database can turn into an unspoken interface between modules. Give each module ownership of its writes even if the tables live in the same database.
+The single-instance setup keeps sessions in the API process. A restart interrupts service and users have to sign in again. That's a deployment constraint; it doesn't follow from shipping a single JAR. Before a schema change, I would test the old JAR against the new schema. If compatibility cannot be preserved, I would choose between a forward fix and a restore before deploying, because a restore can discard writes made since the backup. For a restore that includes uploads, I'd check that recovered records still open their files; starting the API is not enough. Those are proposed checks, separate from the department test above.
 
-**Releases and ownership.** One release is convenient when features change together: the code and schema can be tested as a unit. When one team needs to ship frequently without waiting for another, look at what actually holds up releases. A separate service can help if the team owns it end to end and can keep its API compatible. If every release still needs a simultaneous change to both services, you've added coordination without gaining independence.
+For the department change, the boundary that mattered was the scope of the operation. I would keep that rule even if the API later ran on several instances or the administration module moved to its own service.
 
-**Load and failures.** A slow export job can exhaust resources used by normal requests. Give that workload a separate worker and limits before splitting an entire business domain. Likewise, two copies of the same backend can help survive an API failure without creating two different services. Neither gives strong isolation if both still overload the same database. Each new runtime also needs its own deployment, health checks and way to trace failures across calls. Take on that work where it buys a specific separation.
-
-## Rehearse one restart and one rollback
-
-The standalone CYYS setup runs one process with sessions in memory. Restarting it interrupts requests and signs users out. Ask whether that's acceptable during a maintenance window. If you need two instances, first test signing in on one and sending the next request to the other. Then stop the first instance. Keeping a user on the same instance can hide the problem until that instance fails. A shared session store is one option, but you also need to check what happens when a session is revoked or the store is unavailable.
-
-Run a separate rollback exercise. After a database change, can the previous release still read and write correctly? If it can't, restoring the old application alone won't get you back. If the system stores attachments separately, restore a matching set of records and files and open a few attachments. A database health check doesn't tell you if the files are there.
-
-I choose the smallest split that changes the outcome: modules to separate responsibilities, replicas to remove dependence on one API process, and services when a specific capability needs independent releases, scaling or failure handling. A system can need all three, but it rarely needs them for the same reason.
+[Back to the case studies](../README.md#architecture-guides)

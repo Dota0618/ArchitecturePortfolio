@@ -1,29 +1,27 @@
 # How I make architecture decisions
 
-I start with a decision someone actually has to make. “How should we architect the backend?” is too broad. “Should exports run outside the API process?” gives me a workload to investigate, a failure to reproduce and a reason to compare alternatives.
+I start with a change someone needs to make or a failure they need to handle. “Should we use microservices?” is too broad. “An export can slow down normal requests. Where should that job run?” gives me something I can investigate. I'd first check where the time goes. A worker may help with API resource contention, but it won't fix an overloaded database on its own.
 
-## 1. Name the problem and the limit
+## Decide what must hold
 
-Describe what a user or operator is trying to do and what goes wrong today. Then name what the design must preserve. For example, a report taking longer is a performance problem; one organisation seeing another's records is an access-control failure. I don't trade those against each other as if both were a few points on a scorecard.
+Write down the rule you cannot relax and the cost you can accept. In an administration system, widening a user's read view must not widen their write authority. In a game asset tool, it may be fine to wait longer for an export if the result needs less manual repair. Those are different kinds of trade-off. I don't put them in the same scorecard.
 
-## 2. Put the alternatives at the right level
+## Compare options using the same event
 
-Include the option of keeping the current shape. A module can clarify ownership in the code. A worker can give a slow job its own resources. Another instance can help the API survive a process failure. A service can have its own contract and release cycle. The right comparison depends on what I need to change; these aren't four sizes of the same solution.
+Pick a specific request or failure and follow it through each option. Start with today's design. Identify where data is owned, where permission is checked, and what the operator can recover if the request stops halfway through. For example, if a model provider may have accepted a request but the application lost the response, look at what the application can establish before it sends anything again.
 
-## 3. Follow a request through success and failure
+A useful scenario has a visible result. “Improve isolation” is too vague. “An operator can manage departments in A and B. While editing in A, assigning a parent in B must fail” tells me what to test.
 
-I use one concrete request to compare the options. Who can start it? Who owns the data it changes? Who can release the code independently? What if the operation finishes but the response never comes back? I also check what the team would have to run, observe and recover. This tends to surface the expensive parts sooner than comparing tools by feature lists.
+## Keep the result next to the decision
 
-## 4. Test the assumption that could change the choice
+Record what changed and rerun the case that previously failed. Also check the behaviour that should remain intact. A department tree that shows more records provides little reassurance until you try the write that should still be denied. And a successful export with existing frames says something about the editor, not about the generator. I label future tests as future tests so the next person knows what they can rely on.
 
-In a backend, that might be running a rollback against a changed schema. For generated sprites, it's playing the first output at game scale, where an attractive preview can hide a broken direction. For AI queries, it's checking that a saved report is still protected when someone loses access. I want the smallest test that could make me choose differently.
+## Leave a way to change course
 
-## 5. Define when I'd revisit the decision
+Name the first condition that would make the design worth revisiting. If maintenance can no longer interrupt active use, test whether users can move between API instances and keep their sessions. If people keep correcting the same model interpretation, offer them a saved query with an agreed definition. Set a numerical target when there's a requirement or baseline behind it.
 
-I record the reason for the choice, the downside I'm willing to accept, and what would make it stop being a good choice. “Move sessions out of the API when a restart can no longer sign users out” is useful. “Move to microservices when we grow” doesn't say what would change or why.
+### Further reading
 
-The articles below apply that process to three different problems. The project background matters because it explains which constraint carries the most weight in each case.
+[Michael Nygard on architecture decision records](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions) explains how the context and consequences help someone revisit a decision. The [SEI's Architecture Tradeoff Analysis Method](https://www.sei.cmu.edu/library/atam-method-for-architecture-evaluation/) is useful for turning concerns into scenarios. [Simon Brown's dynamic diagrams](https://c4model.com/diagrams/dynamic) show one way to make the order of actions visible when a list of components doesn't explain the behaviour.
 
-- [CYYS Framework: where to split a backend](case-studies/cyys-frame-one-process-explicit-boundaries.md)
-- [gameFrameAnimation: how to test output before choosing a pipeline](case-studies/game-frame-animation-first-pass-quality.md)
-- [CYYS AI Platform: how to separate model interpretation from execution authority](case-studies/cyys-ai-platform-architecture.md)
+[Back to the case studies](README.md#architecture-guides)
