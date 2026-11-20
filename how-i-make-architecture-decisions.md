@@ -1,27 +1,23 @@
-# How I make architecture decisions
+# How I structure a new project
 
-I start with a change someone needs to make or a failure they need to handle. “Should we use microservices?” is too broad. “An export can slow down normal requests. Where should that job run?” gives me something I can investigate. I'd first check where the time goes. A worker may help with API resource contention, but it won't fix an overloaded database on its own.
+I start by describing what the software needs to do and what is likely to change. A Java backend that will host several business areas needs somewhere to put the next one. A game asset tool needs somewhere to put the next generator without rebuilding the editor. Those are different design problems, even if both projects end up with a folder called `common`.
 
-## Decide what must hold
+## Put code that changes together in one place
 
-Write down the rule you cannot relax and the cost you can accept. In an administration system, widening a user's read view must not widen their write authority. In a game asset tool, it may be fine to wait longer for an export if the result needs less manual repair. Those are different kinds of trade-off. I don't put them in the same scorecard.
+Start with the main capabilities. Give each one a home and keep the code involved in a typical change close together. In a backend, I prefer a package for departments with its own API, service and persistence code to three global folders that mix code from every feature. Within a feature, I add a layer when there is work for it to do. An empty layer tells the next developer very little.
 
-## Compare options using the same event
+Then write down who may depend on whom. If reusable code needs information about the logged-in user, it can ask through a small interface. It doesn't need to know how the administration module stores users. The code that starts the application can wire the two together.
 
-Pick a specific request or failure and follow it through each option. Start with today's design. Identify where data is owned, where permission is checked, and what the operator can recover if the request stops halfway through. For example, if a model provider may have accepted a request but the application lost the response, look at what the application can establish before it sends anything again.
+## Select technology by the work it needs to do
 
-A useful scenario has a visible result. “Improve isolation” is too vague. “An operator can manage departments in A and B. While editing in A, assigning a parent in B must fail” tells me what to test.
+Choose the deployment model separately from the code structure. A modular backend can ship as one JAR. That is a good starting point when one release can carry the changes and the team can operate it that way. If one workload needs its own resources, a worker may be enough; a new service also brings a network contract and a separate release to maintain.
 
-## Keep the result next to the decision
+Make the same distinction with a replaceable technology. If a local generator and a hosted generator both produce candidate frames, keep their credentials, device setup and job protocols outside the editor. The editor needs a reliable description of frames and timing, regardless of how generation works.
 
-Record what changed and rerun the case that previously failed. Also check the behaviour that should remain intact. A department tree that shows more records provides little reassurance until you try the write that should still be denied. And a successful export with existing frames says something about the editor, not about the generator. I label future tests as future tests so the next person knows what they can rely on.
+## Make shared code earn its place
 
-## Leave a way to change course
+I look for a stable contract, not just matching code. Spreadsheet export can reuse a writer, but a feature still decides which columns and rows a person may export. A query plan can feed both a chart and a report, but their presentation rules can stay separate. When two callers share a helper only by passing flags for their differences, I would rather keep those rules with the callers.
 
-Name the first condition that would make the design worth revisiting. If maintenance can no longer interrupt active use, test whether users can move between API instances and keep their sessions. If people keep correcting the same model interpretation, offer them a saved query with an agreed definition. Set a numerical target when there's a requirement or baseline behind it.
-
-### Further reading
-
-[Michael Nygard on architecture decision records](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions) explains how the context and consequences help someone revisit a decision. The [SEI's Architecture Tradeoff Analysis Method](https://www.sei.cmu.edu/library/atam-method-for-architecture-evaluation/) is useful for turning concerns into scenarios. [Simon Brown's dynamic diagrams](https://c4model.com/diagrams/dynamic) show one way to make the order of actions visible when a list of components doesn't explain the behaviour.
+A useful architecture document makes the next change easy to place. It should show where a new feature goes, which dependency is allowed and which decisions must stay in that feature.
 
 [Back to the case studies](README.md#architecture-guides)

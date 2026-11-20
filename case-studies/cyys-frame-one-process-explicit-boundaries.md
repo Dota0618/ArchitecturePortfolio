@@ -1,36 +1,41 @@
-# One backend release, two different rules for access
+# Designing a reusable Java backend
 
-CYYS Framework is a Java backend for administering organisations, accounts and departments within one management hierarchy. One job is to let an operator manage departments across several authorised organisations while making each edit in a specific organisation. The department screen made the difference between those two scopes visible.
+CYYS Framework is a starting point for Java administration applications. It provides accounts, organisations, permissions and shared technical capabilities so that new business modules do not have to build those from scratch. The design needs to fit two goals: keep business code independent enough to extend, and keep the first deployment simple enough to operate as one application.
 
-## The department tree needed a wider read, not a wider write
+## Organise by responsibility
 
-The client initially sent the selected organisation with the tree request as well as with edit requests. The first browser check used simulated responses. It confirmed that switching organisations sent the right selection for an edit; it did not establish what the real API would return for the tree.
+The main directories are:
 
-The client stopped sending the current selection on the tree request. The backend still worked out which organisations the operator was allowed to see. Edit requests continued to use the selected organisation.
+```text
+backend/
+  cyys-common/        Shared technical mechanisms
+  cyys-admin/         Accounts, organisations and administration rules
+  cyys-application/   Startup, configuration and module assembly
+admin-ui/             Administration frontend
+migrations/           Database schema and migration scripts
+deploy/               Packaging and deployment
+scripts/              Build and operating scripts
+docs/                 Development conventions and version notes
+```
 
-| Scenario | What the server test showed |
-| --- | --- |
-| Open the management tree with access to two organisations. | Departments from both authorised organisations appeared. |
-| Try to save a department in one organisation with a manager or parent from another. | The cross-organisation assignment was rejected. |
+Inside administration, group by feature first. A department change should be traceable inside the department package. Add a controller, service or mapper where it serves a purpose; do not create an interface and implementation for every class. For a new business area, add a peer module rather than a new collection of tables inside administration.
 
-These are results from the 17 November test, not a claim about every read and write path. Separately, the integration test checks both directions of the read rule: an organisation outside the operator’s scope is absent from the tree, then appears when that test operator is granted broader access. A [separate creation test](https://github.com/Dota0618/cyys_frame/blob/238aaa575f024acca72ae8354e8eb4faa45eb06d/backend/cyys-application/src/test/java/com/cyys/application/DepartmentIntegrationTest.java#L58-L68) checks the rejected assignments. The [client change](https://github.com/Dota0618/cyys_frame/blob/238aaa575f024acca72ae8354e8eb4faa45eb06d/admin-ui/src/services/system/departments.ts#L13-L14) and [tree integration test](https://github.com/Dota0618/cyys_frame/blob/238aaa575f024acca72ae8354e8eb4faa45eb06d/backend/cyys-application/src/test/java/com/cyys/application/DepartmentIntegrationTest.java#L18-L32) show how the rule is expressed in the project.
+The application module depends on the modules it assembles. Administration can use common infrastructure. A business module can use common and, when needed, administration. Neither of those modules imports the new business module. If common needs identity, it defines the resolver interface it needs; administration supplies the implementation. The dependency follows the interface even though the call stays in the same process.
 
-## Keep policy with the code that owns it
+## Choose the backend and deployment separately
 
-I separate three questions: which organisation is the operator acting in, may they perform this action, and which records are in scope for this operation? The tree and edit behave differently because an answer to one question cannot stand in for the other two. On a paged list, for example, I'd check that the total count is filtered as well as the returned rows.
+**Java, Spring Boot and Maven.** Maven modules give the project separate build-time dependencies; Spring Boot gives it one executable JAR. A flat application would be easier to set up but would leave more of the dependency discipline to convention. Separate services would allow independent releases but would add network calls and deployment coordination. A module is enough if the requirement is to keep code and its dependencies separate.
 
-CYYS ships a single executable JAR. Its application module assembles administration and common infrastructure. Common defines the interface it needs for resolving identity; administration supplies the implementation because it owns the rules for accounts and organisations. Keeping both in one process avoids a remote call on this path. It also makes careless shortcuts easy: an import rule catches one module using another module's internal code, but it won't catch a hand-written query against a table it doesn't own.
+**MySQL, MyBatis Plus and Flyway.** Accounts, roles and departments have relationships that fit a relational database. MyBatis Plus fits a design where explicit SQL still matters, particularly when controlling which rows a query can see. The cost is that a query written outside the standard path has to apply the same scope rules. Flyway gives schema changes a single migration path; the ability to restore an earlier JAR still depends on whether it can work with the changed schema.
 
-## What would justify a different deployment?
+**React and TypeScript for the administration UI.** The UI is built separately from the JAR. Ant Design Pro supplies the standard forms, tables and navigation. That saves writing a framework around ordinary administration screens, but the API contract still has to stay compatible across frontend and backend releases.
 
-| If this becomes the problem | What I'd try first | What I'd check before committing |
-| --- | --- | --- |
-| Exports slow ordinary requests. | Limit concurrent exports and find the contested resource; move jobs to a worker if the API process needs isolation. | With an export running, compare ordinary request latency and database load. A second process can still compete for the same database. |
-| An API restart is no longer acceptable during active use. | Replicate the same application and revisit session storage. | Sign in on one instance, send the next request to another, then stop the first. Repeat with a revoked session. |
-| One capability keeps holding up unrelated releases. | Give that capability a stable interface and an explicit owner before considering a separate service. | Can the two parts ship independently? If a previously atomic write now crosses a network, what happens when only one side commits? |
+**Single API process for the standalone installation.** Redis is a separate dependency. Files are stored outside the API process, in a mounted directory or object storage. Redis being present does not make sessions shared: the standalone setup holds them in memory, so restarting the API requires users to sign in again. An additional API instance would make sense when availability requires it, provided session handling is redesigned. That does not require splitting the business code into services.
 
-The single-instance setup keeps sessions in the API process. A restart interrupts service and users have to sign in again. That's a deployment constraint; it doesn't follow from shipping a single JAR. Before a schema change, I would test the old JAR against the new schema. If compatibility cannot be preserved, I would choose between a forward fix and a restore before deploying, because a restore can discard writes made since the backup. For a restore that includes uploads, I'd check that recovered records still open their files; starting the API is not enough. Those are proposed checks, separate from the department test above.
+## Set a rule for what goes in common
 
-For the department change, the boundary that mattered was the scope of the operation. I would keep that rule even if the API later ran on several instances or the administration module moved to its own service.
+A request's identity, permission to perform an action and access to individual records answer different questions. Common code can expose identity context and provide mechanisms for applying a scope. Administration owns the meaning of that scope for its accounts and organisations. A department operation decides which authorities it needs; it does not turn its rule into a generic utility.
 
-[Back to the case studies](../README.md#architecture-guides)
+Apply the same rule to a hypothetical inventory module. Put stock movements, quantity rules and their API in `cyys-inventory`. Reuse the shared identity interface and file export helpers. Keep “who can adjust stock” and “which stock records they can see” in the inventory feature. Register the module in the Maven build and add it to the application assembly. The existing common and admin modules do not need to learn about inventory.
+
+[Project layout](https://github.com/Dota0618/cyys_frame/blob/29f329805e9d1bfb74c1c7932d9f4041bd601889/docs/development/project-structure.md) · [Back to the case studies](../README.md#architecture-guides)

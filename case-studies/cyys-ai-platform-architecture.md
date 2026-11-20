@@ -1,39 +1,31 @@
-# From a question to a reviewable query plan
+# Structuring an AI-powered analytics application
 
-CYYS AI Platform lets users ask questions about published datasets and turn the answer into a table, chart or report. The model proposes a plan. The user can read it before choosing Run. The backend is responsible for checking what may actually be queried.
+CYYS AI Platform lets someone ask a question about a published dataset, review the proposed interpretation and run it to produce a table, chart or report. I would organise this kind of application around the parts that change at different rates: dataset definitions, model interpretation, permitted execution and presentation.
 
-## Put the interpretation where the user can see it
+## Give each capability a home
 
-Consider this example: “How many requests did we get in October, by category?” In a made-up dataset, two requests were created in October and closed in November; a third was created in September and closed in October. Counting by creation date gives two. Counting by closure date gives one. Both queries can run successfully, but the system needs to know which event the user meant to count.
-
-For that case, I'd want the user to see this before execution:
+The implementation has a backend module for AI functionality. The outline below shows how I would organise responsibilities within that module and its boundaries; it is not a source directory listing.
 
 ```text
-Dataset: Requests
-Measure: Count requests
-Date basis: Created date
-Period: 1 October inclusive to 1 November exclusive
-Group by: Category
+datasets/          Published fields, metrics and discovery rules
+planning/          Question interpretation and reviewable plans
+execution/         Checks, authorised query execution and results
+reports/           Saved views, report versions and export
+integrations/      Provider and storage adapters
 ```
 
-Letting the model execute directly removes the review step, but may hide a wrong interpretation behind a convincing chart. A saved query is better when the same metric comes up often and its definition is already agreed. A reviewable plan is useful for the questions in between. It adds a step, so make the choices that affect the result visible rather than asking the user to approve technical detail.
+Datasets own the meaning of a field or metric. Planning can read allowed definitions and propose a plan. Execution uses those definitions and the user's current permissions to decide what may run. Reports consume results and apply their own presentation rules. They should not take a shortcut back to raw data or to the model. Put the model connection behind an interface used by planning. Keep that adapter responsible for provider requests and responses, not for reading reports or granting query access.
 
-The person confirms the meaning; the backend checks the current dataset definition and the person's authority to run the query. The platform stayed with its existing catalogue visibility rules rather than creating another path that exposed source and field names. The cost is that permitted data can be harder to discover. If discovery becomes a recurring problem, I'd test a limited catalogue view with its own permission before making source metadata more widely visible.
+## Pick a query interface before picking a model
 
-## What changed in testing
+A structured query plan is the contract between planning and execution. It describes the dataset, measure, grouping, filters and date basis in terms the application understands. For “requests received in October by category,” the plan needs to say whether it counts creation dates or closure dates. The caller can review that choice; execution can reject fields and operations outside the published dataset.
 
-| Check | Observed result | Limit |
-| --- | --- | --- |
-| October acceptance test with a three-table test dataset | A task had finished, but the application still treated its plan as unfinished. After the state check was corrected, the original failing case passed on rerun. | This checked when a completed plan became available for review. |
-| Separate desktop workflow using a model substitute | After Run, the table and chart appeared. Refresh preserved the plan and result. Export worked and both versions of a regenerated report could still be opened. | This checked the workflow, not the model's interpretation. |
-| Separate check with a real model provider | An undefined metric prompted a clarification question. | One observed response; it does not establish accuracy on other questions. |
+I would use a model here for interpreting variable language, not for choosing what the user may query. A direct SQL path can shorten the first prototype, but ties interpretation to schema details and makes it harder to inspect what the user agreed to. At the other end, a fixed query builder gives more control and suits recurring reports with agreed definitions. The structured plan lets both routes use the same execution rules. It costs more to define and maintain than passing a string through, and new query capabilities must be added deliberately.
 
-The first failure changed where I'd put the regression test: start before the task has finished and observe the transition. Opening a plan that was already saved would miss the bug.
+## Reuse the contract, not the privileges
 
-## Two failures I'd test next
+The table, chart and report can reuse the shape of a query result. They can also share field labels and formatting conventions. They should not share a permission decision made at an earlier stage. For example, a report that inherits source permissions needs to apply them when someone opens or exports it, not only when a query first runs. Likewise, catalogue discovery and permission to see individual rows are separate. I kept the existing catalogue permissions rather than giving AI analytics a separate way to discover source and field names. That keeps one set of discovery rules, at the cost of making some datasets harder to find.
 
-If the model response is lost, the provider may have already accepted the request. Look up the original request if the provider supports it. Only retry automatically when the provider guarantees that the same operation will not be repeated. Otherwise, show that the outcome is unknown and let the user decide whether to try again.
-
-If source access is revoked after a report is saved, try opening and exporting the saved version. If the report inherits source permissions, both actions should be denied. Revoking access at the application does not retract a file that a user already downloaded. These are proposed checks, not part of the acceptance results above.
+For a concrete extension, add a “requests by department” report without writing another model integration or query executor. Define the supported dimension in the catalogue, use the same query plan and result contract, and keep the chart and layout choices in reports. If the metric stops changing and several users ask for the same view, publish a saved query rather than making a model interpret it each time.
 
 [Back to the case studies](../README.md#architecture-guides)

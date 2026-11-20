@@ -1,30 +1,34 @@
-# A usable sprite sheet starts with a quality test
+# Designing a desktop pipeline for 2D game animation
 
-gameFrameAnimation is a desktop tool for turning a character reference into 2D animation frames for games. A game developer needs frames that can be played at the right scale and speed, without the character changing shape when it turns. Both hosted and offline routes are possibilities. Before choosing one, I want to know if the output can go straight into a game.
+gameFrameAnimation is a desktop prototype for making 2D animation frames from character references. Its workflow is to submit a reference and a prompt, review the candidate frames, change their timing and export them for use in a game. A generator works in images; the game needs named actions, directions, frame order and timing. I would put that translation in the application, rather than relying on a particular model or game engine to own it.
 
-## What the prototype got through to export
+## Organise around the production workflow
 
-The prototype started with a reference image and a prompt. In the November desktop check, an existing sequence of frames stood in for generated output. The check went from job submission through frame selection and timing changes to export. The prototype took those known frames through export. It did not establish that a model could create an acceptable sequence.
+This is the layout I would use for the next version; it is not a directory listing of the prototype:
 
-That distinction affects the design. I can make the review and export path work with existing frames before investing in a generator. I wouldn't choose a generation route based on what that editor test showed.
+```text
+desktop/              Window, file selection and editing UI
+animation/            Actions, directions, frames, timing and anchors
+generation/
+  hosted/             Remote requests and job handling
+  local/              Local runtime and device setup
+export/               Sprite-sheet layout and engine-specific output
+```
 
-## A walk cycle that could change the choice
+The desktop interface assembles those pieces. The animation module owns the project's editable data and doesn't know how requests or exports are made. A generator returns candidate frames and their provenance; it does not rewrite the approved animation. Export reads the edited animation and writes a package. I would store the selected frame files and their timing with the project, so reopening an asset does not depend on a provider still serving it.
 
-I'd use one character with a visible shoulder guard on one side and a walk in eight directions. Give both candidates the same reference, game scale, frame timing and export rules. Keep the first output and count missing views as failures. For this test, all eight directions must be usable after the same automatic packaging, with no retries, substitutions or manual fixes. I'd then repeat the test with a different character and action before standardising on a route.
+## Choose the shell, generation and output independently
 
-Here's how I'd separate two problems that can look similar in a preview:
+The prototype uses Electron. It fits a desktop workflow with local references, previews and file export, at the cost of a heavier runtime than a small native utility. A browser-first version could make distribution simpler, but I would choose it only if local file handling and offline generation were no longer important enough to shape the experience. The choice of shell does not decide which model runs.
 
-| What you see in the game | Check before blaming the model | What I'd do if confirmed |
-| --- | --- | --- |
-| The character jumps sideways during the northeast walk. | Compare the point used to place the character in each frame. The export may have moved that point when it trimmed transparent pixels. | Fix the origin used by the exporter and replay the exact same frames. |
-| The shoulder guard changes sides when the character turns. | Check the original frames for the two directions and whether the exporter mirrored an image. | Fix the mirroring rule if it caused the change. If the raw frames already disagree, constrain generation or try rendering from a rig. |
+I would keep hosted and local generation as separate routes. A hosted service avoids installing the model on each workstation, but introduces network dependence and requires a decision about whether artwork can be sent off the machine. A local route can keep art on the workstation when the entire workflow runs locally, but makes hardware and runtime setup part of the product. Their job lifecycles need not look identical. The common output should stay small: frames, the direction they belong to and enough information to review their origin.
 
-These are examples of what to look for, not defects observed in the prototype. Play the sheet in the target engine at game scale, switch directions while moving, then return to idle. [Godot's sprite animation guide](https://docs.godotengine.org/en/stable/tutorials/2d/2d_sprite_animation.html) shows how to preview frames or a sprite sheet. Record how many directions passed before manual cleanup and how many needed new frames. Keep the cleanup time separate from generation time.
+Sprite-sheet layout belongs in export. The same edited animation can be packed differently for different consumers without teaching the editing screen about each engine. Don't bake file naming, trimming or atlas packing into the model response.
 
-## When each route earns its place
+## Keep the editor reusable
 
-Hosted generation avoids maintaining the model on the workstation, but I'd check whether the reference art can leave the machine and whether retries make the job expensive. Offline keeps the input local if the workflow runs entirely on the workstation; it needs hardware and a local runtime that someone can maintain. A rig takes work up front, but limits how much of the character can change between directions. I'd compare it if appearance keeps drifting in the raw output.
+Suppose a developer adds an eight-direction walk and later asks for an attack animation. The editor can reuse selection, ordering, playback, timing and anchors. The action-specific requirements, such as directions or when a strike should occur, belong in the action data or its own settings. Similarly, adding another generator should not require an export change, and adding an export format should not require generating the frames again.
 
-I haven't verified a complete eight-direction export from a real model for this case. The next decision depends on the first-pass results and the effort to repair them. The prototype only settled the earlier question: existing frames can go through selection, timing and export.
+I would avoid making a general pipeline framework up front. Keep editing and export stable, and give generator-specific choices a place of their own. That is enough structure for a second route without asking the first route to define every future one.
 
 [Back to the case studies](../README.md#architecture-guides)
