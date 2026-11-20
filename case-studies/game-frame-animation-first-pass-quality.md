@@ -1,6 +1,12 @@
 # Put the quality test before the generation pipeline
 
-gameFrameAnimation is a tool I'm designing to turn a character reference into 2D animation frames for games. I'm considering both hosted and offline generation. The first thing I need to know is whether either route produces something I can use in the game without redrawing it. A good preview doesn't answer that question: I need to see the same character move and turn at game scale.
+gameFrameAnimation is a desktop tool for turning a character reference into 2D animation frames for games. I'm considering both hosted and offline generation. The first thing I need to know is whether either route produces something I can use in the game without redrawing it. A good preview doesn't answer that question: I need to see the same character move and turn at game scale.
+
+## What the desktop prototype could do
+
+The local client started with a single reference image and a prompt. Its frame preview let the user select frames and adjust timing before export. In the November workflow check, the input to that preview was an existing sequence of frames. The check covered submitting the job, selecting frames, adjusting timing and exporting. That was a useful result: the workflow could take a known sequence through to export. It didn't tell me whether a hosted or offline model could produce a usable sequence in the first place.
+
+## Compare the first outputs in the game
 
 I'd start with a walk cycle in eight directions. Choose a character with an asymmetrical feature, like a shoulder guard. Agree on the eight directions, frame size, timing and playback scale. Run both routes on the same reference. Keep the first output, including missing views; don't replace a bad result and call the replacement a first pass.
 
@@ -18,4 +24,4 @@ Play the animation at game scale. Switch direction while walking, then return to
 
 One good walk cycle gets you to the next test, not to a general quality claim. Try another character and action that you didn't tune for. I'd add queues and retry logic when job duration or volume starts getting in the way. They won't make a bad animation usable.
 
-The eight-direction run is the next test for this design; I'm not treating a preview as a result.
+I don't have a verified eight-direction set from a real model to show here. The desktop export check and the model-quality test are separate milestones.

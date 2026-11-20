@@ -12,6 +12,14 @@ I make the direction of dependencies explicit. A build check should fail if comm
 
 I keep the access checks separate for the same reason: each one answers a different question. An operator may be allowed to list records and may be allowed to select a branch, but some records in that branch can still be outside the operator's scope. Test those conditions separately. For a paged list, verify that the count follows the same rules as the rows you return.
 
+## What changed in the department screen
+
+The management tree needed to show departments from every organisation the operator was allowed to manage. The edit form had a different job: every write had to stay in the organisation selected for that edit. Sending the current selection with both requests treated those two jobs as if they had the same scope.
+
+Initially, the browser check used simulated responses. It showed that switching organisations sent the right selection for an edit, but it couldn't establish what the real API would return for the management tree. The client was changed so the tree request no longer sent the current selection. The server still decided which organisations the operator could see; edit requests still carried a selection.
+
+In the server test on 17 November, the tree showed departments from two authorised test organisations. In the same test, the API still rejected assigning a manager or parent department from another organisation. The result was a broader view without broader write access. That is why I treat the scope of a read and the authority to change a record as separate decisions.
+
 ## Compare what you'd gain by separating the runtime
 
 **Data and transactions.** Suppose creating an account and granting its initial role must succeed or fail together. If both writes run inside one local transaction, the database can enforce that rule. If separate services own the account and the grant, decide what users see when the first write succeeds and the second fails. You might need a pending state, a retry or a way to reverse the first change. On the other hand, a single database can turn into an unspoken interface between modules. Give each module ownership of its writes even if the tables live in the same database.

@@ -7,5 +7,5 @@ Start with [How I make architecture decisions](how-i-make-architecture-decisions
 ## Architecture guides
 
 1. **CYYS Framework** · [Split the code before you split the deployment](case-studies/cyys-frame-one-process-explicit-boundaries.md) — A Java administration backend. How to compare modules, workers, replicas and services by what they let you change independently.
-2. **gameFrameAnimation** · [Put the quality test before the generation pipeline](case-studies/game-frame-animation-first-pass-quality.md) — A game animation tool in design. How to compare hosted and offline generation by the first result you can actually use.
+2. **gameFrameAnimation** · [Put the quality test before the generation pipeline](case-studies/game-frame-animation-first-pass-quality.md) — A desktop prototype checked with existing frames. How to test a generator before betting the workflow on it.
 3. **CYYS AI Platform** · [Let the model propose the query. Decide who can run it.](case-studies/cyys-ai-platform-architecture.md) — An analytics workflow. How to separate interpreting a question, approving the plan and enforcing access.
