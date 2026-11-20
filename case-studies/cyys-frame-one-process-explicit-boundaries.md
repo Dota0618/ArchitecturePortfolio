@@ -1,10 +1,12 @@
 # Split the code before you split the deployment
 
-My default is to keep a backend in one release and separate responsibilities in the code. I change that default when a part of the system needs to run, scale or ship independently. A crowded codebase makes me look at dependencies first. More services can make those dependencies harder to change without making them any clearer.
+CYYS Framework is a Java administration backend for organisations that belong to the same management hierarchy. An operator can select an organisation, but the selection doesn't grant new actions or make every record in that organisation visible. The framework needs to keep those rules out of shared infrastructure that other modules use.
+
+CYYS separates common infrastructure, administration and application assembly in code, while shipping them in one backend release. That setup raises a useful question: which parts need a clear boundary in the code, and which actually need to run, scale or ship on their own?
 
 ## Draw the dependencies first
 
-For an administration backend, I'd start with three pieces: common infrastructure, administration, and an application that assembles them. Let common code define what it needs from identity resolution. Let administration supply the implementation because it owns the account and organisation rules. The application can still package and release both together.
+In CYYS, the common module defines what it needs from identity resolution. Administration supplies the implementation because it owns the account and organisation rules. A third module assembles the application. That keeps the dependency pointed towards common code without making identity resolution a network call.
 
 I make the direction of dependencies explicit. A build check should fail if common code starts importing administration classes. This catches one kind of coupling. It won't catch common code quietly querying an administration table, so review data ownership as well as imports.
 
@@ -20,7 +22,7 @@ I keep the access checks separate for the same reason: each one answers a differ
 
 ## Rehearse one restart and one rollback
 
-If you deploy a single process with sessions in memory, restarting it interrupts requests and signs users out. Ask whether that's acceptable during a maintenance window. If you need two instances, first test signing in on one and sending the next request to the other. Then stop the first instance. Keeping a user on the same instance can hide the problem until that instance fails. A shared session store is one option, but you also need to check what happens when a session is revoked or the store is unavailable.
+The standalone CYYS setup runs one process with sessions in memory. Restarting it interrupts requests and signs users out. Ask whether that's acceptable during a maintenance window. If you need two instances, first test signing in on one and sending the next request to the other. Then stop the first instance. Keeping a user on the same instance can hide the problem until that instance fails. A shared session store is one option, but you also need to check what happens when a session is revoked or the store is unavailable.
 
 Run a separate rollback exercise. After a database change, can the previous release still read and write correctly? If it can't, restoring the old application alone won't get you back. If the system stores attachments separately, restore a matching set of records and files and open a few attachments. A database health check doesn't tell you if the files are there.
 

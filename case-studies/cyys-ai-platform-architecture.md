@@ -1,12 +1,14 @@
 # Let the model propose the query. Decide who can run it.
 
+CYYS AI Platform helps users ask questions about published datasets and turn the results into tables, charts and reports. Its workflow gives users a chance to read the model's plan before they run the query. That matters because a question can be clear in conversation and still be ambiguous when translated into a query.
+
 “How many requests did we get last month, by category?” sounds clear until you have to choose a date column. Should you count requests created last month or requests closed last month? A valid query can answer the wrong question. I give the person asking a chance to check the interpretation before the query runs. I leave the decision about what can run with the backend.
 
 ## Make the plan readable and keep enforcement on the server
 
 Show the dataset, measure, date range, grouping and filters in terms the reader understands. Let the user fix the date or ask for clarification. On execution, have the backend validate the plan against the dataset and check the user's current permissions. A user clicking Run confirms the intended question. The server still decides which fields, operations and records are allowed.
 
-I start by reusing existing catalogue permissions: it avoids creating a second way to expose source and field names. The downside is that someone who could query a permitted subset of rows may never see the published dataset. If that happens often, I'd consider a small catalogue view with its own permission and a short list of safe fields. Test discovery, query execution and access to saved reports separately. Finding the name of a dataset shouldn't let you read its rows.
+For this platform, we kept the existing catalogue visibility rules: it avoids creating a second way to expose source and field names. The downside is that someone who could query a permitted subset of rows may never see the published dataset. If that happens often, I'd consider a small catalogue view with its own permission and a short list of safe fields. Test discovery, query execution and access to saved reports separately. Finding the name of a dataset shouldn't let you read its rows.
 
 ## Try three interruptions before adding more automation
 

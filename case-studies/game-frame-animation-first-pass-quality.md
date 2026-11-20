@@ -1,6 +1,6 @@
 # Put the quality test before the generation pipeline
 
-When the hardest part of an AI tool is whether the output is usable, I start by defining what usable means. For game sprites, I want to see a character move in the game. A hosted demo can look good on its own, and a local model can give me more control. Neither tells me what I'll have to fix before the sprite can ship.
+gameFrameAnimation is a tool I'm designing to turn a character reference into 2D animation frames for games. I'm considering both hosted and offline generation. The first thing I need to know is whether either route produces something I can use in the game without redrawing it. A good preview doesn't answer that question: I need to see the same character move and turn at game scale.
 
 I'd start with a walk cycle in eight directions. Choose a character with an asymmetrical feature, like a shoulder guard. Agree on the eight directions, frame size, timing and playback scale. Run both routes on the same reference. Keep the first output, including missing views; don't replace a bad result and call the replacement a first pass.
 
@@ -17,3 +17,5 @@ Play the animation at game scale. Switch direction while walking, then return to
 - If both routes produce usable frames, I compare the time and cost per usable animation, including retries and cleanup. Also check whether the artwork is allowed to leave the workstation and whether the local machine can run the workflow.
 
 One good walk cycle gets you to the next test, not to a general quality claim. Try another character and action that you didn't tune for. I'd add queues and retry logic when job duration or volume starts getting in the way. They won't make a bad animation usable.
+
+The eight-direction run is the next test for this design; I'm not treating a preview as a result.
