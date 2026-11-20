@@ -1,0 +1,17 @@
+# Let the model propose the query. Decide who can run it.
+
+“How many requests did we get last month, by category?” sounds clear until you have to choose a date column. Should you count requests created last month or requests closed last month? A valid query can answer the wrong question. I give the person asking a chance to check the interpretation before the query runs. I leave the decision about what can run with the backend.
+
+## Make the plan readable and keep enforcement on the server
+
+Show the dataset, measure, date range, grouping and filters in terms the reader understands. Let the user fix the date or ask for clarification. On execution, have the backend validate the plan against the dataset and check the user's current permissions. A user clicking Run confirms the intended question. The server still decides which fields, operations and records are allowed.
+
+I start by reusing existing catalogue permissions: it avoids creating a second way to expose source and field names. The downside is that someone who could query a permitted subset of rows may never see the published dataset. If that happens often, I'd consider a small catalogue view with its own permission and a short list of safe fields. Test discovery, query execution and access to saved reports separately. Finding the name of a dataset shouldn't let you read its rows.
+
+## Try three interruptions before adding more automation
+
+1. **Refresh after reviewing a plan.** Restore the plan so the user can continue. Don't ask the model to interpret the same question again unless the user asks for a new plan. If the dataset definition changed in the meantime, check it again before execution.
+2. **Lose the model response after sending the request.** The provider may already have done the work. If you can look up the original request or retry with an identifier the provider honours, use that to decide what to do. Otherwise show that the result is unknown and let the user start a new attempt. An automatic retry can repeat billable work and produce a different answer.
+3. **Remove someone's access after they save a report.** Try opening and exporting the saved version. If report access is supposed to follow source access, enforce it again there. Keeping the old report version is useful for understanding what was shared at the time. It won't let you take back a file someone already downloaded.
+
+If most requests turn into a few recurring questions, I'd offer those as saved queries with agreed definitions and the same server-side checks. Save model interpretation for questions people actually need help expressing.
